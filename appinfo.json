@@ -1,0 +1,53 @@
+{
+  "uuid": "4829b9c9-d6e5-422a-b598-2a901e4ec0f8",
+  "shortName": "Filmplakat2",
+  "longName": "Filmplakat2",
+  "companyName": "",
+  "versionCode": 1,
+  "versionLabel": "1.0.0",
+  "watchapp": {
+    "watchface": true
+  },
+  "appKeys": {
+  },
+  "resources": {
+   "media": [
+       {"menuIcon": true,
+        "type": "png",
+        "name": "IMAGE_MENU_ICON",
+        "file": "images/menu_icon_filmplakat.png"
+       },
+       {"type": "png",
+        "name": "IMAGE_BT_ON_ICON",
+        "file": "images/bt_connected.png"
+       },
+       {"type": "png",
+        "name": "IMAGE_BT_OFF_ICON",
+        "file": "images/bt_disconnected.png"
+       },
+       {"type":"font",
+        "characterRegex": "[einzwdrvfünschbatulö]",
+        "trackingAdjust": -1,
+        "name":"FONT_ROBOTO_BOLDITALIC_35",
+        "file":"fonts/roboto/Roboto-BoldItalic_35.ttf"
+       },
+       {"type":"font",
+        "characterRegex": "[einzwdrvfünschbatulögı]",
+        "trackingAdjust": -2,
+        "name":"FONT_ROBOTO_ITALIC_33",
+        "file":"fonts/roboto/Roboto-Italic_33.ttf"
+       },
+       {"type":"font",
+        "characterRegex": "[uhr]",
+        "trackingAdjust": -2,
+        "name":"FONT_ROBOTO_LIGHTITALIC_30",
+        "file":"fonts/roboto/Roboto-LightItalic_30.ttf"
+       },
+       {"type":"font",
+        "characterRegex": "[0-9 .MDFSJAONoiranuebäzplgstmkv%]",
+        "name":"FONT_ROBOTO_ITALIC_13",
+        "file":"fonts/roboto/Roboto-Italic_13.ttf"
+       }
+    ]
+  }
+}
