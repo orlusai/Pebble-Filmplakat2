@@ -43,6 +43,14 @@
 
 #define ROW_BUF_SIZE 20
 
+// Storage-Keys
+enum PersistantSettings
+{
+  SETTINGS_INVERTER_STATE = 1,
+  SETTINGS_STATUS_VISIBLE = 2
+};
+
+// Status der einzelnen Zeilen
 enum RowState
 {
     ROW_STATE_KEEP      = 0,
@@ -109,11 +117,19 @@ static const char* WEEKDAYS[] = {
   "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"
 };
 
+// GUI Objekte
 static Window *window = 0;
 static Layer* window_layer = 0;
+static InverterLayer* inverter_layer = 0;
 
+// Zeilen
 static TextLayer* row[NUM_ROWS + NUM_SHIFT_ROWS];
 static PropertyAnimation* animations[NUM_ROWS + NUM_SHIFT_ROWS];
+
+// Statusbalken
+static Layer *status_layer = 0;
+static PropertyAnimation *status_animation = 0;
+static GBitmap *icon_bt_on = 0, *icon_bt_off = 0;
 
 static GFont fontUhr, fontHour, fontMinutes, fontDate;
 
@@ -127,9 +143,14 @@ static uint8_t row_cur_cnt, row_old_cnt;
 static GPoint row_cur_pos[NUM_ROWS],
               row_old_pos[NUM_ROWS];
 
-
 static uint8_t first_update = 1;
 
+// Timer zum deaktivieren der Gestenerkennung
+static AppTimer *accel_config_timer = 0;
+
+// Konfigwerte
+static bool settings_inverter_state = false;
+static bool settings_status_visible = false;
 
 static PropertyAnimation* setup_animation( Layer* layer, GRect *old_rect, GRect *new_rect )
 {
@@ -199,7 +220,7 @@ static void setup_text_layer(TextLayer* row, GPoint new_pos, GPoint old_pos,
   text_layer_set_font( row, font );
 
   layer_add_child( window_layer, text_layer_get_layer( row ) );
-  //layer_insert_below_sibling( text_layer_get_layer( row ), inverter_layer_get_layer( inverter ) );
+  layer_insert_below_sibling( text_layer_get_layer( row ), inverter_layer_get_layer( inverter_layer ) );
 
   if( distance < 0 )
   {
@@ -623,6 +644,72 @@ static void update_rows( void )
 #undef CONTENTS_CHANGED
 }
 
+static void update_status( struct Layer *layer, GContext *ctx )
+{
+  //TRACE
+
+  int batt_charge = (int)battery_state_service_peek().charge_percent;
+
+  GRect batt_outline = GRect( SCREEN_WIDTH - 22, 2, 20, 10);
+  GRect batt_fill    = GRect( batt_outline.origin.x + 2,
+                              batt_outline.origin.y + 2,
+                              16 * batt_charge / 100, 
+                              batt_outline.size.h - 4);
+
+  GRect bluetooth_icon = GRect(2, 2, 12, 13);
+
+  graphics_context_set_stroke_color( ctx, GColorWhite );
+  graphics_context_set_fill_color( ctx, GColorBlack );
+  graphics_context_set_text_color( ctx, GColorWhite );
+
+  graphics_fill_rect( ctx, layer_get_frame( layer ), 0, GCornerNone );
+        
+  graphics_fill_rect(ctx, batt_outline, 0, GCornerNone);
+  graphics_draw_rect(ctx, batt_outline);
+
+  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_fill_rect(ctx, batt_fill, 0, GCornerNone);
+
+  graphics_draw_bitmap_in_rect(ctx, bluetooth_connection_service_peek() ? icon_bt_on
+                                                                        : icon_bt_off,
+                                                                        bluetooth_icon );
+}
+
+static void toggle_inverter_view()
+{
+  TRACE
+
+  settings_inverter_state = !settings_inverter_state;
+
+  layer_set_hidden( inverter_layer_get_layer( inverter_layer ), !settings_inverter_state );
+  persist_write_bool( SETTINGS_INVERTER_STATE, settings_inverter_state );
+}
+
+static void toggle_status_view()
+{
+  TRACE
+
+  GRect hidden_rect = GRect( 0, -20, SCREEN_WIDTH, 20 ),
+        visible_rect = GRect( 0, 0, SCREEN_WIDTH, 20 );
+
+  settings_status_visible = !settings_status_visible;
+
+  if( status_animation != NULL )
+  {
+    property_animation_destroy( status_animation );
+  }
+
+  status_animation = property_animation_create_layer_frame( status_layer, NULL, 
+                                                            settings_status_visible ? &visible_rect
+                                                                                    : &hidden_rect );
+
+  animation_set_delay( &status_animation->animation, 1000 );
+  animation_set_curve( &status_animation->animation, AnimationCurveEaseInOut );
+  animation_schedule( &status_animation->animation );
+
+  persist_write_bool( SETTINGS_STATUS_VISIBLE, settings_status_visible );
+}
+
 static void on_minute_tick( struct tm *time_ticks __attribute__((__unused__)),
                             TimeUnits units_changed __attribute__((__unused__)) )
 {
@@ -632,6 +719,58 @@ static void on_minute_tick( struct tm *time_ticks __attribute__((__unused__)),
   update_rows();
   schedule_animations();
 }
+
+static void on_tap_gesture( AccelAxisType axis, int32_t direction )
+{
+  TRACE
+
+  switch( axis )
+  {
+    case ACCEL_AXIS_X:
+      break;
+
+    case ACCEL_AXIS_Y:
+      toggle_status_view();
+      break;
+
+    case ACCEL_AXIS_Z:
+      toggle_inverter_view();
+      break;
+  }
+}
+
+static void on_tap_timeout( void *data __attribute__((__unused__)) )
+{
+  TRACE
+
+  if( accel_config_timer )
+  {
+    app_timer_cancel( accel_config_timer );
+    accel_config_timer = NULL;
+    accel_tap_service_unsubscribe();
+  }
+}
+
+static void on_battery_change( BatteryChargeState charge __attribute__((__unused__)) )
+{
+  TRACE
+
+  if( settings_status_visible )
+  {
+    layer_mark_dirty( status_layer );
+  }
+}
+
+static void on_bluetooth_change( bool connected __attribute__((__unused__)) )
+{
+  TRACE
+
+  if( settings_status_visible )
+  {
+    layer_mark_dirty( status_layer );
+  }
+}
+
 static void window_load(Window *window)
 {
   TRACE
@@ -646,6 +785,23 @@ static void window_load(Window *window)
     row[i] = text_layer_create( window_frame );
   }
 
+  inverter_layer = inverter_layer_create( window_frame );
+  layer_set_hidden( inverter_layer_get_layer( inverter_layer), !settings_inverter_state );
+  layer_add_child( window_layer, inverter_layer_get_layer( inverter_layer ) );
+
+  status_layer = layer_create( settings_status_visible ? GRect( 0, 0, SCREEN_WIDTH, 20 )
+                                                       : GRect( 0, -20, SCREEN_WIDTH, 20 ) );
+
+  layer_set_update_proc( status_layer, update_status );
+  layer_add_child( window_layer, status_layer );
+  layer_insert_below_sibling( status_layer, inverter_layer_get_layer( inverter_layer ) );
+
+  accel_config_timer = app_timer_register( 5000, on_tap_timeout, NULL );
+
+  accel_tap_service_subscribe( on_tap_gesture );
+  battery_state_service_subscribe( on_battery_change );
+  bluetooth_connection_service_subscribe( on_bluetooth_change );
+
   tick_timer_service_subscribe( MINUTE_UNIT, on_minute_tick );
 }
 
@@ -654,8 +810,10 @@ static void window_unload(Window *window)
   TRACE
 
   int i;
-
   cleanup_animations();
+
+  inverter_layer_destroy( inverter_layer );
+  layer_destroy( status_layer );
 
   for( i = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
   {
@@ -670,6 +828,15 @@ static void window_unload(Window *window)
   fonts_unload_custom_font( fontMinutes );
   fonts_unload_custom_font( fontDate );
   fonts_unload_custom_font( fontUhr );
+
+  gbitmap_destroy( icon_bt_on );
+  gbitmap_destroy( icon_bt_off );
+
+  if( status_animation != NULL )
+  {
+    property_animation_destroy( status_animation );
+    status_animation = NULL;
+  }
 }
 
 static void init(void)
@@ -677,6 +844,15 @@ static void init(void)
   TRACE
 
   first_update = 1;
+  if( persist_exists( SETTINGS_INVERTER_STATE ) )
+  {
+    settings_inverter_state = persist_read_bool( SETTINGS_INVERTER_STATE );
+  }
+
+  if( persist_exists( SETTINGS_STATUS_VISIBLE ) )
+  {
+    settings_status_visible = persist_read_bool( SETTINGS_STATUS_VISIBLE );
+  }
 
   window = window_create();
 
@@ -694,6 +870,9 @@ static void init(void)
   fontUhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHTITALIC_30 ) );
   fontDate    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_13 ) );
 
+  icon_bt_on  = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_ON_ICON );
+  icon_bt_off = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_OFF_ICON );
+
   memset( row_cur_data, 0, sizeof( row_cur_data ) );
   memset( row_old_data, 0, sizeof( row_old_data ) );
   memset( animations, 0, sizeof( animations ) );
@@ -703,7 +882,18 @@ static void deinit(void)
 {
   TRACE
 
+  if( accel_config_timer )
+  {
+    app_timer_cancel( accel_config_timer );
+    accel_config_timer = NULL;
+  }
+
+  accel_tap_service_unsubscribe();
+  battery_state_service_unsubscribe();
+  bluetooth_connection_service_unsubscribe();
+
   tick_timer_service_unsubscribe();
+
   window_destroy( window );
 }
 
