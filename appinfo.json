@@ -44,9 +44,14 @@
         "file":"fonts/roboto/Roboto-LightItalic_30.ttf"
        },
        {"type":"font",
-        "characterRegex": "[0-9 .MDFSJAONoiranuebäzplgstmkv%]",
+        "characterRegex": "[0-9 .MDFSJAONoiranuebäzplgstmkv]",
         "name":"FONT_ROBOTO_ITALIC_13",
         "file":"fonts/roboto/Roboto-Italic_13.ttf"
+       },
+       {"type":"font",
+        "characterRegex": "[0-9%+]",
+        "name":"FONT_ROBOTO_REGULAR_9",
+        "file":"fonts/roboto/Roboto-Regular_9.ttf"
        }
     ]
   }
