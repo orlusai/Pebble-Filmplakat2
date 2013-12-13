@@ -18,7 +18,7 @@
 #define DEBUG 0
 
 #if DEBUG
-# define TRACE                  APP_LOG( APP_LOG_LEVEL_INFO, __FUNCTION__ )
+# define TRACE                  APP_LOG( APP_LOG_LEVEL_INFO, __FUNCTION__ );
 # define APP_DBG( msg... )      APP_LOG( APP_LOG_LEVEL_DEBUG, ##msg )
 #else
 # define TRACE
@@ -128,10 +128,11 @@ static PropertyAnimation* animations[NUM_ROWS + NUM_SHIFT_ROWS];
 
 // Statusbalken
 static Layer *status_layer = 0;
+static InverterLayer *charge_layer = 0;
 static PropertyAnimation *status_animation = 0;
 static GBitmap *icon_bt_on = 0, *icon_bt_off = 0;
 
-static GFont fontUhr, fontHour, fontMinutes, fontDate;
+static GFont fontUhr, fontHour, fontMinutes, fontDate, fontCharge;
 
 // Puffer für aktive / alte Zeileninhalte
 static char row_cur_data[NUM_ROWS][ROW_BUF_SIZE],
@@ -647,10 +648,15 @@ static void update_rows( void )
 static void update_status( struct Layer *layer, GContext *ctx )
 {
   //TRACE
+  BatteryChargeState charge = battery_state_service_peek();
 
-  int batt_charge = (int)battery_state_service_peek().charge_percent;
+  char batt_text[5] = "\0\0\0\0\0";
+  // FIXME: BETA2 liefert nur werte von 10-90, nie 100
+  int  batt_charge = 10 + (int)charge.charge_percent;
 
-  GRect batt_outline = GRect( SCREEN_WIDTH - 22, 2, 20, 10);
+  GRect batt_outline = GRect( SCREEN_WIDTH - 22, 2, 20, 11);
+  GRect batt_label   = GRect( SCREEN_WIDTH - 22, 2, 20, 10);
+
   GRect batt_fill    = GRect( batt_outline.origin.x + 2,
                               batt_outline.origin.y + 2,
                               16 * batt_charge / 100, 
@@ -663,51 +669,35 @@ static void update_status( struct Layer *layer, GContext *ctx )
   graphics_context_set_text_color( ctx, GColorWhite );
 
   graphics_fill_rect( ctx, layer_get_frame( layer ), 0, GCornerNone );
-        
+  
   graphics_fill_rect(ctx, batt_outline, 0, GCornerNone);
   graphics_draw_rect(ctx, batt_outline);
 
-  graphics_context_set_fill_color(ctx, GColorWhite);
-  graphics_fill_rect(ctx, batt_fill, 0, GCornerNone);
+  if( batt_charge > 0 )
+  {
+    snprintf( batt_text, 4, "%d%c", batt_charge, charge.is_charging ? '+':'\0' );
+    graphics_draw_text( ctx, batt_text, fontCharge, batt_label,
+                        GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL );
+  }
+
+  // Die "Füllung" der Batterie wird via Invertieren realisiert
+  // So kann auch der Text teilinvers dargestellt werden.
+  layer_add_child( layer, inverter_layer_get_layer( charge_layer ) );
+  layer_set_frame( inverter_layer_get_layer( charge_layer ), batt_fill );
 
   graphics_draw_bitmap_in_rect(ctx, bluetooth_connection_service_peek() ? icon_bt_on
                                                                         : icon_bt_off,
                                                                         bluetooth_icon );
 }
 
-static void toggle_inverter_view()
+static void toggle_view_setting( Layer *layer, int storage_key, bool *value )
 {
   TRACE
 
-  settings_inverter_state = !settings_inverter_state;
+  (*value) = !(*value);
 
-  layer_set_hidden( inverter_layer_get_layer( inverter_layer ), !settings_inverter_state );
-  persist_write_bool( SETTINGS_INVERTER_STATE, settings_inverter_state );
-}
-
-static void toggle_status_view()
-{
-  TRACE
-
-  GRect hidden_rect = GRect( 0, -20, SCREEN_WIDTH, 20 ),
-        visible_rect = GRect( 0, 0, SCREEN_WIDTH, 20 );
-
-  settings_status_visible = !settings_status_visible;
-
-  if( status_animation != NULL )
-  {
-    property_animation_destroy( status_animation );
-  }
-
-  status_animation = property_animation_create_layer_frame( status_layer, NULL, 
-                                                            settings_status_visible ? &visible_rect
-                                                                                    : &hidden_rect );
-
-  animation_set_delay( &status_animation->animation, 1000 );
-  animation_set_curve( &status_animation->animation, AnimationCurveEaseInOut );
-  animation_schedule( &status_animation->animation );
-
-  persist_write_bool( SETTINGS_STATUS_VISIBLE, settings_status_visible );
+  layer_set_hidden( layer , !(*value) );
+  persist_write_bool( storage_key, *value );
 }
 
 static void on_minute_tick( struct tm *time_ticks __attribute__((__unused__)),
@@ -727,14 +717,18 @@ static void on_tap_gesture( AccelAxisType axis, int32_t direction )
   switch( axis )
   {
     case ACCEL_AXIS_X:
+      APP_DBG( "on_tap_gesture( X, %ld );", direction );
       break;
 
     case ACCEL_AXIS_Y:
-      toggle_status_view();
+      APP_DBG( "on_tap_gesture( Y, %ld );", direction );
+      toggle_view_setting( status_layer, SETTINGS_STATUS_VISIBLE, &settings_status_visible );
       break;
 
     case ACCEL_AXIS_Z:
-      toggle_inverter_view();
+      APP_DBG( "on_tap_gesture( Z, %ld );", direction );
+      toggle_view_setting( inverter_layer_get_layer( inverter_layer ), 
+                           SETTINGS_INVERTER_STATE, &settings_inverter_state );
       break;
   }
 }
@@ -745,16 +739,17 @@ static void on_tap_timeout( void *data __attribute__((__unused__)) )
 
   if( accel_config_timer )
   {
+    accel_tap_service_unsubscribe();
+
     app_timer_cancel( accel_config_timer );
     accel_config_timer = NULL;
-    accel_tap_service_unsubscribe();
   }
 }
 
 static void on_battery_change( BatteryChargeState charge __attribute__((__unused__)) )
 {
   TRACE
-
+  
   if( settings_status_visible )
   {
     layer_mark_dirty( status_layer );
@@ -776,23 +771,26 @@ static void window_load(Window *window)
   TRACE
 
   int i; // immer gut ein 'i' zu haben
-
+  
   window_layer = window_get_root_layer( window );
-  GRect window_frame  = layer_get_frame( window_layer );
+  GRect window_frame = layer_get_frame( window_layer );
+  GRect status_bar_rect = GRect( 0, 0, SCREEN_WIDTH, 20 );
 
   for( i = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
   {
     row[i] = text_layer_create( window_frame );
   }
 
+  // Inverter, Statusbalken & Ladezustandslayer
   inverter_layer = inverter_layer_create( window_frame );
   layer_set_hidden( inverter_layer_get_layer( inverter_layer), !settings_inverter_state );
   layer_add_child( window_layer, inverter_layer_get_layer( inverter_layer ) );
 
-  status_layer = layer_create( settings_status_visible ? GRect( 0, 0, SCREEN_WIDTH, 20 )
-                                                       : GRect( 0, -20, SCREEN_WIDTH, 20 ) );
+  status_layer = layer_create( status_bar_rect );  
+  charge_layer = inverter_layer_create( GRectZero );
 
   layer_set_update_proc( status_layer, update_status );
+  layer_set_hidden( status_layer , !settings_status_visible );
   layer_add_child( window_layer, status_layer );
   layer_insert_below_sibling( status_layer, inverter_layer_get_layer( inverter_layer ) );
 
@@ -813,6 +811,7 @@ static void window_unload(Window *window)
   cleanup_animations();
 
   inverter_layer_destroy( inverter_layer );
+  inverter_layer_destroy( charge_layer );
   layer_destroy( status_layer );
 
   for( i = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
@@ -828,6 +827,7 @@ static void window_unload(Window *window)
   fonts_unload_custom_font( fontMinutes );
   fonts_unload_custom_font( fontDate );
   fonts_unload_custom_font( fontUhr );
+  fonts_unload_custom_font( fontCharge );
 
   gbitmap_destroy( icon_bt_on );
   gbitmap_destroy( icon_bt_off );
@@ -869,6 +869,7 @@ static void init(void)
   fontMinutes = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_33 ) );
   fontUhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHTITALIC_30 ) );
   fontDate    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_13 ) );
+  fontCharge  = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_9 ) );
 
   icon_bt_on  = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_ON_ICON );
   icon_bt_off = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_OFF_ICON );
