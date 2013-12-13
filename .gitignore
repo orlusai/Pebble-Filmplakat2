@@ -1,5 +1,5 @@
-
 # Ignore build generated files
 build
 config-minified.js
 pebble-js-app.js
+.lock-waf*
