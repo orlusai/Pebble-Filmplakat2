@@ -38,6 +38,9 @@
 #define DATE_HIGHT 36
 #define DOTLESS_X  5
 
+#define ROW_STD_HIGHT 36
+#define ROW_MAX_HIGHT 50
+
 #define SCREEN_HIGHT 168
 #define SCREEN_WIDTH 144
 
@@ -211,7 +214,7 @@ static void setup_text_layer(TextLayer* row, GPoint new_pos, GPoint old_pos,
 
   int speed       = 500,
       distance    = ( old_pos.y - new_pos.y ),
-      rect_height = ( ( black ) ? 37 : 50 );
+      rect_height = ( ( black ) ? ROW_STD_HIGHT : ROW_MAX_HIGHT );
 
   GRect start_rect, target_rect;
 
@@ -773,11 +776,12 @@ static void window_load(Window *window)
   
   window_layer = window_get_root_layer( window );
   GRect window_frame = layer_get_frame( window_layer );
+  GRect row_frame = GRect( 0, 0, SCREEN_WIDTH, ROW_MAX_HIGHT );
   GRect status_bar_rect = GRect( 0, 0, SCREEN_WIDTH, 20 );
 
   for( i = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
   {
-    row[i] = text_layer_create( window_frame );
+    row[i] = text_layer_create( row_frame );
   }
 
   // Inverter, Statusbalken & Ladezustandslayer
