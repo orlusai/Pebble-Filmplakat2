@@ -134,6 +134,13 @@ static Layer *status_layer = 0;
 static InverterLayer *charge_layer = 0;
 static GBitmap *icon_bt_on = 0, *icon_bt_off = 0;
 
+static bool status_bluetooth_conn = false;
+static BatteryChargeState status_battery_charge = { 
+  .charge_percent = 100,
+  .is_charging    = false,
+  .is_plugged     = true
+};
+
 static GFont fontUhr, fontHour, fontMinutes, fontDate, fontCharge;
 
 // Puffer für aktive / alte Zeileninhalte
@@ -650,11 +657,9 @@ static void update_rows( void )
 static void update_status( struct Layer *layer, GContext *ctx )
 {
   //TRACE
-  BatteryChargeState charge = battery_state_service_peek();
-
   char batt_text[5] = "\0\0\0\0\0";
   // FIXME: BETA2 liefert nur werte von 10-90, nie 100
-  int  batt_charge = 10 + (int)charge.charge_percent;
+  int  batt_charge = 10 + (int)status_battery_charge.charge_percent;
 
   GRect batt_outline = GRect( SCREEN_WIDTH - 22, 2, 20, 11 );
   GRect batt_label   = GRect( SCREEN_WIDTH - 22, 2, 20, 10 );
@@ -677,7 +682,7 @@ static void update_status( struct Layer *layer, GContext *ctx )
 
   if( batt_charge > 0 )
   {
-    snprintf( batt_text, 4, "%d%c", batt_charge, charge.is_charging ? '+':'\0' );
+    snprintf( batt_text, 4, "%d%c", batt_charge, status_battery_charge.is_charging ? '+':'\0' );
     graphics_draw_text( ctx, batt_text, fontCharge, batt_label,
                         GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL );
   }
@@ -687,9 +692,9 @@ static void update_status( struct Layer *layer, GContext *ctx )
   layer_add_child( layer, inverter_layer_get_layer( charge_layer ) );
   layer_set_frame( inverter_layer_get_layer( charge_layer ), batt_fill );
 
-  graphics_draw_bitmap_in_rect(ctx, bluetooth_connection_service_peek() ? icon_bt_on
-                                                                        : icon_bt_off,
-                                                                        bluetooth_icon );
+  graphics_draw_bitmap_in_rect(ctx, status_bluetooth_conn ? icon_bt_on
+                                                          : icon_bt_off,
+                                                            bluetooth_icon );
 }
 
 static void toggle_view_setting( Layer *layer, int storage_key, bool *value )
@@ -748,22 +753,24 @@ static void on_tap_timeout( void *data __attribute__((__unused__)) )
   }
 }
 
-static void on_battery_change( BatteryChargeState charge __attribute__((__unused__)) )
+static void on_battery_change( BatteryChargeState charge )
 {
   TRACE
   
   if( settings_status_visible )
   {
+    status_battery_charge = charge;
     layer_mark_dirty( status_layer );
   }
 }
 
-static void on_bluetooth_change( bool connected __attribute__((__unused__)) )
+static void on_bluetooth_change( bool connected )
 {
   TRACE
 
   if( settings_status_visible )
   {
+    status_bluetooth_conn = connected;
     layer_mark_dirty( status_layer );
   }
 }
@@ -874,6 +881,9 @@ static void init(void)
   memset( row_cur_data, 0, sizeof( row_cur_data ) );
   memset( row_old_data, 0, sizeof( row_old_data ) );
   memset( animations, 0, sizeof( animations ) );
+
+  status_battery_charge = battery_state_service_peek();
+  status_bluetooth_conn = bluetooth_connection_service_peek();
 }
 
 static void deinit(void)
