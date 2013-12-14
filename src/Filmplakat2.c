@@ -654,13 +654,13 @@ static void update_status( struct Layer *layer, GContext *ctx )
   // FIXME: BETA2 liefert nur werte von 10-90, nie 100
   int  batt_charge = 10 + (int)charge.charge_percent;
 
-  GRect batt_outline = GRect( SCREEN_WIDTH - 22, 2, 20, 11);
-  GRect batt_label   = GRect( SCREEN_WIDTH - 22, 2, 20, 10);
+  GRect batt_outline = GRect( SCREEN_WIDTH - 22, 2, 20, 11 );
+  GRect batt_label   = GRect( SCREEN_WIDTH - 22, 2, 20, 10 );
 
   GRect batt_fill    = GRect( batt_outline.origin.x + 2,
                               batt_outline.origin.y + 2,
                               16 * batt_charge / 100, 
-                              batt_outline.size.h - 4);
+                              batt_outline.size.h - 4 );
 
   GRect bluetooth_icon = GRect(2, 2, 12, 13);
 
@@ -670,8 +670,8 @@ static void update_status( struct Layer *layer, GContext *ctx )
 
   graphics_fill_rect( ctx, layer_get_frame( layer ), 0, GCornerNone );
   
-  graphics_fill_rect(ctx, batt_outline, 0, GCornerNone);
-  graphics_draw_rect(ctx, batt_outline);
+  graphics_fill_rect( ctx, batt_outline, 0, GCornerNone );
+  graphics_draw_rect( ctx, batt_outline );
 
   if( batt_charge > 0 )
   {
