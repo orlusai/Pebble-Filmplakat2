@@ -129,7 +129,6 @@ static PropertyAnimation* animations[NUM_ROWS + NUM_SHIFT_ROWS];
 // Statusbalken
 static Layer *status_layer = 0;
 static InverterLayer *charge_layer = 0;
-static PropertyAnimation *status_animation = 0;
 static GBitmap *icon_bt_on = 0, *icon_bt_off = 0;
 
 static GFont fontUhr, fontHour, fontMinutes, fontDate, fontCharge;
@@ -831,12 +830,6 @@ static void window_unload(Window *window)
 
   gbitmap_destroy( icon_bt_on );
   gbitmap_destroy( icon_bt_off );
-
-  if( status_animation != NULL )
-  {
-    property_animation_destroy( status_animation );
-    status_animation = NULL;
-  }
 }
 
 static void init(void)
