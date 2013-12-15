@@ -14,6 +14,7 @@
  */
 
 #include <pebble.h>
+#include "movie_text_layer.h"
 
 #define DEBUG 0
 
@@ -25,20 +26,41 @@
 # define APP_DBG( msg... )
 #endif
 
+#define TEST_DATE 0
+
+#if TEST_DATE
+static int32_t test_dates[] = {
+  1387040400, /* 17:00 */
+  1387040460, /* 17:01 */
+  1387040940, /* 17:09 */
+  1387041000, /* 17:10 */
+  1387041540, /* 17:19 */
+  1387041600, /* 17:20 */
+  1387041660, /* 17:21 */
+  1386978600, /* 23:50 */
+  1386978660, /* 23:51 */
+  1386979140, /* 23:59 */
+  1387065600, /* 00:00 */
+  1387065660, /* 00:01 */
+};
+
+static int32_t test_date_pos = 0;
+static AppTimer *test_date_timer = 0;
+#endif
+
 // Gesamtzahl der Zeilen für Uhrzeit
-#define NUM_ROWS       5
-// Anzahl der beweglichen Zeilen
-#define NUM_SHIFT_ROWS 4
+#define NUM_ROWS 5
+
 
 // Zeilenhöhen in Pixel
 #define BASE_ROW_X 20
-#define ROW1_HIGHT 28
-#define ROW2_HIGHT 25
-#define ROW3_HIGHT 28
-#define DATE_HIGHT 36
+#define ROW1_HIGHT 28 + 2
+#define ROW2_HIGHT 25 + 2
+#define ROW3_HIGHT 28 + 2
+#define DATE_HIGHT 36 + 2
 #define DOTLESS_X  5
 
-#define ROW_STD_HIGHT 36
+#define ROW_STD_HIGHT 40
 #define ROW_MAX_HIGHT 50
 
 #define SCREEN_HIGHT 168
@@ -126,8 +148,7 @@ static Layer* window_layer = 0;
 static InverterLayer* inverter_layer = 0;
 
 // Zeilen
-static TextLayer* row[NUM_ROWS + NUM_SHIFT_ROWS];
-static PropertyAnimation* animations[NUM_ROWS + NUM_SHIFT_ROWS];
+static MovieTextLayer* row[NUM_ROWS];
 
 // Statusbalken
 static Layer *status_layer = 0;
@@ -141,12 +162,10 @@ static BatteryChargeState status_battery_charge = {
   .is_plugged     = true
 };
 
-static GFont fontUhr, fontHour, fontMinutes, fontDate, fontCharge;
+static GFont font_uhr, font_hour, font_minutes, font_date, font_charge;
 
 // Puffer für aktive / alte Zeileninhalte
-static char row_cur_data[NUM_ROWS][ROW_BUF_SIZE],
-            row_old_data[NUM_ROWS][ROW_BUF_SIZE];
-
+static char row_cur_data[NUM_ROWS][ROW_BUF_SIZE];
 static uint8_t row_cur_cnt, row_old_cnt;
 
 // aktive / alte Layerpositionen
@@ -162,158 +181,23 @@ static AppTimer *accel_config_timer = 0;
 static bool settings_inverter_state = false;
 static bool settings_status_visible = false;
 
-static PropertyAnimation* setup_animation( Layer* layer, GRect *old_rect, GRect *new_rect )
-{
-  TRACE
-
-  int i;
-  for( i = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
-  {
-    if( animations[i] == NULL )
-    {
-      animations[i] = property_animation_create_layer_frame( layer, old_rect, new_rect );
-      return animations[i];
-    }
-  }
-
-  return NULL;
-}
-
-static void schedule_animations( void )
-{
-  TRACE
-
-  int i, cnt;
-  for( i = 0, cnt = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
-  {
-    if( animations[i] != NULL )
-    {
-      animation_schedule( &animations[i]->animation );
-      ++cnt;
-    }
-  }
-
-  APP_DBG( "scheduled %d animations.", cnt );
-}
-
-static void cleanup_animations( void )
-{
-  TRACE
-
-  int i, cnt;
-  for( i = 0, cnt = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
-  {
-    if( animations[i] != NULL )
-    {
-      property_animation_destroy( animations[i] );
-      animations[i] = NULL;
-      ++cnt;
-    }
-  }
-
-  APP_DBG( "deleted %d animations.", cnt );
-}
-
-static void setup_text_layer(TextLayer* row, GPoint new_pos, GPoint old_pos, 
-                             GFont font, int state, int delay, int black)
-{
-  TRACE
-
-  int speed       = 500,
-      distance    = ( old_pos.y - new_pos.y ),
-      rect_height = ( ( black ) ? ROW_STD_HIGHT : ROW_MAX_HIGHT );
-
-  GRect start_rect, target_rect;
-
-  text_layer_set_text_color( row, GColorWhite );
-  text_layer_set_background_color( row, ( black ) ? GColorBlack : GColorClear );
-  text_layer_set_font( row, font );
-
-  layer_add_child( window_layer, text_layer_get_layer( row ) );
-  layer_insert_below_sibling( text_layer_get_layer( row ), inverter_layer_get_layer( inverter_layer ) );
-
-  if( distance < 0 )
-  {
-    distance *= -1;
-  }
-
-  if( first_update )
-  {
-    speed = 600;
-  }
-  else if( new_pos.x == -SCREEN_WIDTH )
-  {
-    speed = 1400;
-  }
-  else if( old_pos.x == SCREEN_WIDTH )
-  {
-    speed = 1000;
-  }
-
-  switch( state )
-  {
-    case ROW_STATE_KEEP:
-      start_rect = GRect( old_pos.x, old_pos.y, SCREEN_WIDTH - old_pos.x - 1, rect_height );
-      target_rect = GRect( new_pos.x, new_pos.y, SCREEN_WIDTH - new_pos.x - 1, rect_height );
-      break;
-
-    case ROW_STATE_DISAPPEAR:
-      start_rect = GRect( old_pos.x, old_pos.y, SCREEN_WIDTH - old_pos.x - 1, rect_height );
-      target_rect = GRect( -SCREEN_WIDTH, old_pos.y, SCREEN_WIDTH - new_pos.x - 1, rect_height );
-      break;
-
-    case ROW_STATE_REAPPEAR:
-      start_rect = GRect( SCREEN_WIDTH, new_pos.y, SCREEN_WIDTH - new_pos.x - 1, rect_height );
-      target_rect = GRect( new_pos.x, new_pos.y, SCREEN_WIDTH - new_pos.x - 1, rect_height );
-      break;
-
-    case ROW_STATE_STAYDOWN:
-      start_rect = GRect( 0, 0, 0, 0 );
-      target_rect = GRect( 0, 0, 0, 0 );
-      speed = 1;
-      break;
-  }
-
-  if( ROW_STATE_STAYDOWN != state )
-  {
-    PropertyAnimation *animation = NULL;
-
-    layer_set_frame( text_layer_get_layer( row ), start_rect );
-    
-    if( memcmp( &start_rect, &target_rect, sizeof( GRect ) ) == 0 )
-    {
-      APP_DBG( "skipping row animation." );
-      return;
-    }
-
-    animation = setup_animation( text_layer_get_layer( row ), NULL, &target_rect );
-
-    if( animation != NULL )
-    {
-      animation_set_duration( &animation->animation, speed );
-      animation_set_curve( &animation->animation, AnimationCurveEaseInOut );
-
-      if( delay )
-      {
-        animation_set_delay( &animation->animation, 100 );
-      }
-    }
-    else
-    {
-      //FIXME: OOM
-      APP_LOG( APP_LOG_LEVEL_ERROR, "no free animation objects!");
-    }
-  }
-}
-
 static void copy_time( uint8_t *is_ascii, uint8_t *ten_and_mark )
 {
   TRACE
 
   int hours, minutes, tens, ones;
 
+#if TEST_DATE
+  struct tm* now = localtime( &test_dates[test_date_pos++]); 
+
+  if( test_date_pos > 10 )
+  {
+    test_date_pos = 0;
+  }
+#else
   int32_t time_val = time( NULL );
   struct tm* now = localtime( &time_val );
+#endif
 
   row_cur_cnt = 0;
 
@@ -419,18 +303,49 @@ static void copy_time( uint8_t *is_ascii, uint8_t *ten_and_mark )
   }
 }
 
+static void update_if_needed( MovieTextLayer *row, const char* row_buf,
+                              GPoint* old_pos, GPoint* new_pos )
+{
+  TRACE
+
+  if( strcmp( row_buf, movie_text_layer_get_text( row ) ) )
+  {
+    if( new_pos->y != old_pos->y )
+    {
+      movie_text_layer_set_origin( row, *new_pos, MovieTextUpdateDelay, false );
+    }
+    movie_text_layer_set_text( row, row_buf, MovieTextUpdateSlideLeft, false );
+  }
+  else
+  {
+      movie_text_layer_set_origin( row, *new_pos, MovieTextUpdateInstant, false );
+  }
+}
+
+static void update_and_move( MovieTextLayer *row1, const char* row1_text, GPoint *row1_pos,
+                             MovieTextLayer *row2, const char* row2_text, GPoint *row2_pos )
+{
+  TRACE
+
+  movie_text_layer_set_origin( row1, *row1_pos, MovieTextUpdateDelay, false );
+  movie_text_layer_set_text( row1, row1_text, MovieTextUpdateSlideLeft, false );
+
+  if( row2 && row2_text && row2_pos )
+  {
+    movie_text_layer_set_origin( row2, *row2_pos, MovieTextUpdateDelay, false );
+    movie_text_layer_set_text( row2, row2_text, MovieTextUpdateSlideLeft, false );
+  }
+}
+
 static void update_rows( void )
 {
   TRACE
 
-#define CONTENTS_CHANGED( row_num ) ( strcmp( row_cur_data[( row_num )], row_old_data[( row_num )] ) )
-
-  int base_offset_y = 0, offset_y = 0, row_state, i;
+  int base_offset_y = 0, offset_y = 0, i;
   uint8_t is_asc[NUM_ROWS], ten_and_mark = 0;
 
   // alte Zeileninhalte / Positionen speichern
-  memcpy( row_old_pos, row_cur_pos, sizeof( row_old_pos ) );
-  memcpy( row_old_data, row_cur_data, sizeof( row_old_data ) );
+  memcpy( row_old_pos, row_cur_pos, sizeof( GPoint ) * row_cur_cnt );
   row_old_cnt = row_cur_cnt;
 
   memset( row_cur_pos, 0, sizeof( row_cur_pos ) );
@@ -462,7 +377,7 @@ static void update_rows( void )
   row_cur_pos[0].y = ( base_offset_y += DATE_HIGHT );
   
   base_offset_y += 22; // warum 22? Puffer??
-  offset_y = (SCREEN_HIGHT/*166*/ - base_offset_y) / 2;
+  offset_y = ( SCREEN_HIGHT - base_offset_y ) / 2;
 
   /* finale positionen */
   for( i = 0; i < row_cur_cnt; ++i )
@@ -475,190 +390,102 @@ static void update_rows( void )
 
   if( first_update )
   {
-    // Neustart des Watchface, Zeilen abwechselnd von links / rechts einblenden
-    int side_pos = -SCREEN_WIDTH;
+    // Neustart des Watchface
     row_old_cnt = row_cur_cnt;
-   
-    memset( row_old_data[3], 0, sizeof( row_old_data[3] ) );
-    memset( row_old_data[4], 0, sizeof( row_old_data[4] ) );
-    memcpy( row_old_data[3], row_cur_data[3], sizeof( row_old_data[3] ) );
-    memcpy( row_old_data[4], row_cur_data[4], sizeof( row_old_data[4] ) );
+    memcpy( row_old_pos, row_cur_pos, sizeof( row_cur_pos ) );
 
-    for( i = 0; i < row_old_cnt; ++i )
+    for( i = 0; i < NUM_ROWS; ++i )
     {
-      row_old_pos[i].x = ( side_pos *= -1 );
-      row_old_pos[i].y = row_cur_pos[i].y;
+      if( i < row_cur_cnt )
+      {
+        movie_text_layer_set_origin( row[i], row_cur_pos[i], MovieTextUpdateNone, false );
+      }
     }
 
     ten_and_mark = 0;
   }
-  
+
   //
   // TextLayer setzen und animieren
   //
-  row_state = ROW_STATE_KEEP;
 
-  // "Uhr" Zeile, konstant
-  setup_text_layer( row[2], row_cur_pos[2], row_old_pos[2], fontUhr, ROW_STATE_KEEP, 0, 0 );
-  text_layer_set_text( row[2], row_cur_data[2] );
-
-  // Stunden
-  if( CONTENTS_CHANGED( 1 ) && !first_update )
+  // stunden, immer da
+  update_if_needed( row[1], row_cur_data[1], &row_old_pos[1], &row_cur_pos[1] );
+  
+  // 'uhr', immer da
+  if( first_update )
   {
-    // "normales" Update
-    setup_text_layer( row[1], GPoint( -SCREEN_WIDTH, row_old_pos[1].y ), row_old_pos[1],
-                              fontHour, ROW_STATE_KEEP, 0, 1 );
-    setup_text_layer( row[6], row_cur_pos[1], GPoint( SCREEN_WIDTH, row_cur_pos[1].y ),
-                              fontHour, ROW_STATE_KEEP, 1, 1 );
-
-    text_layer_set_text( row[1], row_old_data[1] );
-    text_layer_set_text( row[6], row_cur_data[1] );
+    first_update = 0;
+    movie_text_layer_set_origin( row[2], row_cur_pos[2], MovieTextUpdateDelay, false );
+    movie_text_layer_set_text( row[2], row_cur_data[2], MovieTextUpdateSlideLeft, false );
   }
   else
   {
-    // initiales update
-    setup_text_layer( row[1], row_cur_pos[1], row_old_pos[1], fontHour, ROW_STATE_KEEP, 1, 1);
-
-    text_layer_set_text( row[1], row_cur_data[1] );
-    text_layer_set_text( row[6], " " );
+    movie_text_layer_set_text( row[2], row_cur_data[2], MovieTextUpdateInstant, false );
+    movie_text_layer_set_origin( row[2], row_cur_pos[2], MovieTextUpdateInstant, false );
   }
 
-  // Minuten - Zeile 3
-  if( row_cur_cnt - 1 >= 3 )
-  {
-    row_state = ( row_cur_cnt == row_old_cnt ) ? ROW_STATE_KEEP
-                                               : ROW_STATE_REAPPEAR;
-  }
-  else
-  {
-    row_state = ( row_cur_cnt == row_old_cnt ) ? ROW_STATE_STAYDOWN
-                                               : ROW_STATE_DISAPPEAR;
-  }
+  // Datum, immer da
+  update_if_needed( row[0], row_cur_data[0], &row_old_pos[0], &row_cur_pos[0] );
 
-  if( ROW_STATE_KEEP == row_state )
+  // Bewegte zeile - 3 / 4 für Minuten
+  //
+  // Möglich kombinationen:
+  //
+  // XX Uhr    -> XX Uhr  1: cnt 3 -> 4
+  // XX Uhr 19 -> XX Uhr 20: cnt 4 -> 5  'einund / zwanzig'
+  // XX Uhr 29 -> XX Uhr 30: cnt 5 -> 4
+  // XX Uhr 59 -> XX Uhr   : cnt 5 -> 3
+  // keine Änderung ->     : cnt == old_cnt
+  //
+  if( row_old_cnt == 3 && row_cur_cnt == 4 )
   {
-    if( CONTENTS_CHANGED( 3 ) )
+    // Stunde -> Stunde + Minute
+    update_and_move( row[3], row_cur_data[3], &row_cur_pos[3], NULL, NULL, NULL );
+  }
+  else if( row_old_cnt == 4 && row_cur_cnt == 5 )
+  {
+    // Stunde + Minute -> Stunde + Minuten + Zehner
+    update_and_move( row[3], row_cur_data[3], &row_cur_pos[3],
+                     row[4], row_cur_data[4], &row_cur_pos[4] );
+  }
+  else if( row_old_cnt == 5 && row_cur_cnt == 4 )
+  {
+    // Stunde + Minute + Zehner -> Stunde + Minute
+    update_and_move( row[3], "", &row_cur_pos[3],
+                     row[4], row_cur_data[3], &row_cur_pos[3] );
+  }
+  else if( row_old_cnt == 5 && row_cur_cnt == 3 )
+  {
+    // Stunde + Minute + Zehner -> Stunde
+    update_and_move( row[3], "", &row_cur_pos[3],
+                     row[4], "", &row_cur_pos[4] );
+  }
+  else if( row_old_cnt == row_cur_cnt )
+  {
+    // nur update, keine Zeilenänderung
+    if( row_old_cnt == 3 )
     {
-      if( ten_and_mark )
-      {
-        setup_text_layer( row[3], row_cur_pos[3], GPoint( SCREEN_WIDTH, row_cur_pos[3].y ),
-                                  fontMinutes, row_state, 1, 0 );
-
-        text_layer_set_text( row[3], row_cur_data[3] );
-        text_layer_set_text( row[7], " " );
-      }
-      else
-      {
-        setup_text_layer( row[3], GPoint( -SCREEN_WIDTH, row_old_pos[3].y ), row_old_pos[3],
-                                  fontMinutes, row_state, 0, 0 );
-        setup_text_layer( row[7], row_cur_pos[3], GPoint( SCREEN_WIDTH, row_cur_pos[3].y ),
-                                  fontMinutes, row_state, 1, 0 );
-
-        text_layer_set_text( row[3], row_old_data[3] );
-        text_layer_set_text( row[7], row_cur_data[3] );
-      }
+      movie_text_layer_set_text( row[3], "", MovieTextUpdateInstant, false );
+      movie_text_layer_set_text( row[4], "", MovieTextUpdateInstant, false );
     }
-    else
+    if( row_old_cnt >= 4 )
     {
-      // Position korrigieren wenn nötig
-      setup_text_layer( row[3], row_cur_pos[3], row_old_pos[3], fontMinutes, row_state, 0, 0 );
+      update_if_needed( row[3], row_cur_data[3], &row_old_pos[3], &row_cur_pos[3] );
+    }
 
-      text_layer_set_text( row[3], row_cur_data[3] );
-      text_layer_set_text( row[7], " " );
+    if( row_old_cnt == 5 )
+    {
+      update_if_needed( row[4], row_cur_data[4], &row_old_pos[4], &row_cur_pos[4] );
     }
   }
-  else
-  {
-    // Ein- / Ausblenden
-    setup_text_layer( row[3], row_cur_pos[3], row_old_pos[3], fontMinutes, row_state, 0, 0 );
-
-    text_layer_set_text( row[3], ( row_state == ROW_STATE_DISAPPEAR ) ? row_old_data[3]
-                                                                      : row_cur_data[3] );
-    text_layer_set_text( row[7], " " );
-  }
-
-  // Minuten - Zeile 4
-  if( row_cur_cnt - 1 >= 4 )
-  {
-    row_state = ( row_cur_cnt == row_old_cnt ) ? ROW_STATE_KEEP
-                                               : ROW_STATE_REAPPEAR;
-  }
-  else
-  {
-    row_state = ( row_cur_cnt == row_old_cnt ) ? ROW_STATE_STAYDOWN
-                                               : ROW_STATE_DISAPPEAR;
-  }
-
-  if( ten_and_mark )
-  {
-    // Einblenden
-    setup_text_layer( row[4], row_cur_pos[4], row_old_pos[3], fontMinutes, ROW_STATE_KEEP, 0, 0);
-
-    text_layer_set_text( row[4], row_cur_data[4] );
-    text_layer_set_text( row[8], " " );
-  }
-  else if( ROW_STATE_KEEP == row_state )
-  {
-    if( CONTENTS_CHANGED( 4 ) )
-    {
-        setup_text_layer( row[4], GPoint( -SCREEN_WIDTH, row_old_pos[4].y ), row_old_pos[4],
-                                  fontMinutes, row_state, 0, 0 );
-        setup_text_layer( row[8], row_cur_pos[4], GPoint( SCREEN_WIDTH, row_cur_pos[4].y ),
-                                  fontMinutes, row_state, 1, 0 );
-
-        text_layer_set_text( row[4], row_old_data[4] );
-        text_layer_set_text( row[8], row_cur_data[4] );
-      }
-      else
-      {
-        setup_text_layer( row[4], row_cur_pos[4], row_old_pos[4],
-                                  fontMinutes, row_state, 0, 0 );
-
-        text_layer_set_text( row[4], row_cur_data[4] );
-        text_layer_set_text( row[8], " " );
-      }
-  }
-  else
-  {
-    // Ausblenden / korrigieren
-    setup_text_layer( row[4], row_cur_pos[4], row_old_pos[4], fontMinutes, row_state, 0, 0 );
-
-    text_layer_set_text( row[4], ( row_state == ROW_STATE_DISAPPEAR ) ? row_old_data[4]
-                                                                      : row_cur_data[4] );
-    text_layer_set_text( row[8], " " );
-  }
-
-  // Datumszeile
-  if( CONTENTS_CHANGED( 0 ) && !first_update )
-  {
-    // "normales" Update
-    setup_text_layer( row[0], GPoint( -SCREEN_WIDTH, row_old_pos[0].y ), row_old_pos[0],
-                              fontDate, ROW_STATE_KEEP, 0, 0 );
-    setup_text_layer( row[5], row_cur_pos[0], GPoint( SCREEN_WIDTH, row_cur_pos[0].y ),
-                              fontDate, row_state, 1, 0 );
-
-    text_layer_set_text( row[0], row_old_data[0] );
-    text_layer_set_text( row[5], row_cur_data[0] );
-  }
-  else
-  {
-    // initales update
-    setup_text_layer( row[0], row_cur_pos[0], row_old_pos[0], fontDate, ROW_STATE_KEEP, 1, 0);
-
-    text_layer_set_text( row[0], row_cur_data[0] );
-    text_layer_set_text( row[5], " " );
-  }
-
-  first_update = 0;
-
-#undef CONTENTS_CHANGED
 }
 
 static void update_status( struct Layer *layer, GContext *ctx )
 {
   //TRACE
   char batt_text[5] = "\0\0\0\0\0";
-  // FIXME: BETA2 liefert nur werte von 10-90, nie 100
+  // FIXME: BETA3 liefert nur werte von 10-90, nie 100
   int  batt_charge = 10 + (int)status_battery_charge.charge_percent;
 
   GRect batt_outline = GRect( SCREEN_WIDTH - 22, 2, 20, 11 );
@@ -683,7 +510,7 @@ static void update_status( struct Layer *layer, GContext *ctx )
   if( batt_charge > 0 )
   {
     snprintf( batt_text, 4, "%d%c", batt_charge, status_battery_charge.is_charging ? '+':'\0' );
-    graphics_draw_text( ctx, batt_text, fontCharge, batt_label,
+    graphics_draw_text( ctx, batt_text, font_charge, batt_label,
                         GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL );
   }
 
@@ -707,15 +534,26 @@ static void toggle_view_setting( Layer *layer, int storage_key, bool *value )
   persist_write_bool( storage_key, *value );
 }
 
+#if TEST_DATE
+
+static void on_test_date_tick( void *data __attribute__((__unused__)) )
+{
+  update_rows();
+  test_date_timer = app_timer_register( 5000, on_test_date_tick, NULL );
+}
+
+#else
+
 static void on_minute_tick( struct tm *time_ticks __attribute__((__unused__)),
                             TimeUnits units_changed __attribute__((__unused__)) )
 {
   TRACE
 
-  cleanup_animations();
   update_rows();
-  schedule_animations();
 }
+
+#endif
+
 
 static void on_tap_gesture( AccelAxisType axis, int32_t direction )
 {
@@ -786,15 +624,32 @@ static void window_load(Window *window)
   GRect row_frame = GRect( 0, 0, SCREEN_WIDTH, ROW_MAX_HIGHT );
   GRect status_bar_rect = GRect( 0, 0, SCREEN_WIDTH, 20 );
 
-  for( i = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
-  {
-    row[i] = text_layer_create( row_frame );
-  }
-
   // Inverter, Statusbalken & Ladezustandslayer
   inverter_layer = inverter_layer_create( window_frame );
   layer_set_hidden( inverter_layer_get_layer( inverter_layer), !settings_inverter_state );
   layer_add_child( window_layer, inverter_layer_get_layer( inverter_layer ) );
+
+  // Datumszeilen
+  GFont font_map[] = {
+    font_date,
+    font_hour,
+    font_uhr,
+    font_minutes,
+    font_minutes
+  };
+
+  for( i = 0; i < NUM_ROWS; ++i )
+  {
+    row[i] = movie_text_layer_create( row_frame.origin, ROW_STD_HIGHT );
+
+    movie_text_layer_set_text_color( row[i], GColorWhite );
+    movie_text_layer_set_background_color( row[i], GColorClear );
+    movie_text_layer_set_font( row[i], font_map[i] );
+
+    layer_add_child( window_layer, movie_text_layer_get_layer( row[i] ) );
+    layer_insert_below_sibling( movie_text_layer_get_layer( row[i] ), 
+                                inverter_layer_get_layer( inverter_layer ) );
+  }
 
   status_layer = layer_create( status_bar_rect );  
   charge_layer = inverter_layer_create( GRectZero );
@@ -810,7 +665,11 @@ static void window_load(Window *window)
   battery_state_service_subscribe( on_battery_change );
   bluetooth_connection_service_subscribe( on_bluetooth_change );
 
+#if TEST_DATE
+  test_date_timer = app_timer_register( 5000, on_test_date_tick, NULL );
+#else
   tick_timer_service_subscribe( MINUTE_UNIT, on_minute_tick );
+#endif
 }
 
 static void window_unload(Window *window)
@@ -818,26 +677,25 @@ static void window_unload(Window *window)
   TRACE
 
   int i;
-  cleanup_animations();
 
   inverter_layer_destroy( inverter_layer );
   inverter_layer_destroy( charge_layer );
   layer_destroy( status_layer );
 
-  for( i = 0; i < NUM_ROWS + NUM_SHIFT_ROWS; ++i )
+  for( i = 0; i < NUM_ROWS; ++i )
   {
     if( row[i] != NULL )
     {
-      text_layer_destroy( row[i] );
+      movie_text_layer_destroy( row[i] );
       row[i] = NULL;
     }
   }
 
-  fonts_unload_custom_font( fontHour );
-  fonts_unload_custom_font( fontMinutes );
-  fonts_unload_custom_font( fontDate );
-  fonts_unload_custom_font( fontUhr );
-  fonts_unload_custom_font( fontCharge );
+  fonts_unload_custom_font( font_hour );
+  fonts_unload_custom_font( font_minutes );
+  fonts_unload_custom_font( font_date );
+  fonts_unload_custom_font( font_uhr );
+  fonts_unload_custom_font( font_charge );
 
   gbitmap_destroy( icon_bt_on );
   gbitmap_destroy( icon_bt_off );
@@ -867,23 +725,24 @@ static void init(void)
     .unload = window_unload,
   });
 
-  window_stack_push( window, true /*animated*/ );
-
-  fontHour    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_BOLDITALIC_35 ) );
-  fontMinutes = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_33 ) );
-  fontUhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHTITALIC_30 ) );
-  fontDate    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_13 ) );
-  fontCharge  = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_9 ) );
+  font_hour    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_BOLDITALIC_35 ) );
+  font_minutes = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_33 ) );
+  font_uhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHTITALIC_30 ) );
+  font_date    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_13 ) );
+  font_charge  = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_9 ) );
 
   icon_bt_on  = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_ON_ICON );
   icon_bt_off = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_OFF_ICON );
 
   memset( row_cur_data, 0, sizeof( row_cur_data ) );
-  memset( row_old_data, 0, sizeof( row_old_data ) );
-  memset( animations, 0, sizeof( animations ) );
+  memset( row_cur_pos, 0, sizeof( row_cur_pos ) );
+  memset( row_old_pos, 0, sizeof( row_old_pos ) );
 
   status_battery_charge = battery_state_service_peek();
   status_bluetooth_conn = bluetooth_connection_service_peek();
+
+  // als letztes damit alle resourcen initialisiert sind
+  window_stack_push( window, true /*animated*/ );
 }
 
 static void deinit(void)
@@ -900,7 +759,9 @@ static void deinit(void)
   battery_state_service_unsubscribe();
   bluetooth_connection_service_unsubscribe();
 
+#if !TEST_DATE
   tick_timer_service_unsubscribe();
+#endif
 
   window_destroy( window );
 }
