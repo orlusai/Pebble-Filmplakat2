@@ -501,8 +501,6 @@ static void update_status( struct Layer *layer, GContext *ctx )
   graphics_context_set_stroke_color( ctx, GColorWhite );
   graphics_context_set_fill_color( ctx, GColorBlack );
   graphics_context_set_text_color( ctx, GColorWhite );
-
-  graphics_fill_rect( ctx, layer_get_frame( layer ), 0, GCornerNone );
   
   graphics_fill_rect( ctx, batt_outline, 0, GCornerNone );
   graphics_draw_rect( ctx, batt_outline );
@@ -516,7 +514,6 @@ static void update_status( struct Layer *layer, GContext *ctx )
 
   // Die "Füllung" der Batterie wird via Invertieren realisiert
   // So kann auch der Text teilinvers dargestellt werden.
-  layer_add_child( layer, inverter_layer_get_layer( charge_layer ) );
   layer_set_frame( inverter_layer_get_layer( charge_layer ), batt_fill );
 
   graphics_draw_bitmap_in_rect(ctx, status_bluetooth_conn ? icon_bt_on
@@ -655,7 +652,8 @@ static void window_load(Window *window)
   charge_layer = inverter_layer_create( GRectZero );
 
   layer_set_update_proc( status_layer, update_status );
-  layer_set_hidden( status_layer , !settings_status_visible );
+  layer_set_hidden( status_layer, !settings_status_visible );
+  layer_add_child( status_layer, inverter_layer_get_layer( charge_layer ) );
   layer_add_child( window_layer, status_layer );
   layer_insert_below_sibling( status_layer, inverter_layer_get_layer( inverter_layer ) );
 
