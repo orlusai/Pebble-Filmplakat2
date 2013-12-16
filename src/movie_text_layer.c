@@ -75,9 +75,12 @@ static void _animation_stopped( struct Animation* animation, bool finished, void
       case MovieTextUpdateNone:
       case MovieTextUpdateInstant:
       case MovieTextUpdateDelay:
-      case MovieTextUpdateSlideRight:
-        off_screen.origin.x = SCREEN_WIDTH;
       break;
+
+      case MovieTextUpdateSlideRight:
+      case MovieTextUpdateSlideThrough:
+        off_screen.origin.x = SCREEN_WIDTH;
+        /* break; */
 
       case MovieTextUpdateSlideLeft:
       {
@@ -267,6 +270,7 @@ void movie_text_layer_set_text( MovieTextLayer* layer, const char* text,
         }
         break;
 
+      case MovieTextUpdateSlideThrough:
       case MovieTextUpdateSlideLeft:
         {
           // buf_r rechts außerhalb des fensters platzieren, dann "einfliegen"
@@ -319,6 +323,7 @@ void movie_text_layer_set_origin( MovieTextLayer* layer, GPoint origin,
       case MovieTextUpdateInstant:
       case MovieTextUpdateSlideLeft:
       case MovieTextUpdateSlideRight:
+      case MovieTextUpdateSlideThrough:
       {
         data->animating_in = true;
         data->animating_out = false;
@@ -368,6 +373,7 @@ const char* movie_text_layer_get_text( MovieTextLayer* layer )
         case MovieTextUpdateInstant:
         case MovieTextUpdateSlideLeft:
         case MovieTextUpdateSlideRight:
+        case MovieTextUpdateSlideThrough:
           return data->buf_r;
       }
     }

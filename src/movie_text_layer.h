@@ -39,6 +39,7 @@ typedef enum
   MovieTextUpdateInstant,       // Update now with animation
   MovieTextUpdateSlideLeft,     // slide-to-left animation
   MovieTextUpdateSlideRight,    // slide-to-right animation
+  MovieTextUpdateSlideThrough,  // slide-left-out-right-in animation
   MovieTextUpdateDelay          // Delay update until next animation (only origin)
 } MovieTextUpdateMode;
 
