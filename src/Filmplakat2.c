@@ -579,13 +579,7 @@ static void on_tap_timeout( void *data __attribute__((__unused__)) )
 {
   TRACE
 
-  if( accel_config_timer )
-  {
-    accel_tap_service_unsubscribe();
-
-    app_timer_cancel( accel_config_timer );
-    accel_config_timer = NULL;
-  }
+  accel_tap_service_unsubscribe();
 }
 
 static void on_battery_change( BatteryChargeState charge )
@@ -746,12 +740,6 @@ static void init(void)
 static void deinit(void)
 {
   TRACE
-
-  if( accel_config_timer )
-  {
-    app_timer_cancel( accel_config_timer );
-    accel_config_timer = NULL;
-  }
 
   accel_tap_service_unsubscribe();
   battery_state_service_unsubscribe();
