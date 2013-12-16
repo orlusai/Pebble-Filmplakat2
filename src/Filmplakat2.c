@@ -314,7 +314,7 @@ static void update_if_needed( MovieTextLayer *row, const char* row_buf,
     {
       movie_text_layer_set_origin( row, *new_pos, MovieTextUpdateDelay, false );
     }
-    movie_text_layer_set_text( row, row_buf, MovieTextUpdateSlideLeft, false );
+    movie_text_layer_set_text( row, row_buf, MovieTextUpdateSlideThrough, false );
   }
   else
   {
@@ -328,12 +328,12 @@ static void update_and_move( MovieTextLayer *row1, const char* row1_text, GPoint
   TRACE
 
   movie_text_layer_set_origin( row1, *row1_pos, MovieTextUpdateDelay, false );
-  movie_text_layer_set_text( row1, row1_text, MovieTextUpdateSlideLeft, false );
+  movie_text_layer_set_text( row1, row1_text, MovieTextUpdateSlideThrough, false );
 
   if( row2 && row2_text && row2_pos )
   {
     movie_text_layer_set_origin( row2, *row2_pos, MovieTextUpdateDelay, false );
-    movie_text_layer_set_text( row2, row2_text, MovieTextUpdateSlideLeft, false );
+    movie_text_layer_set_text( row2, row2_text, MovieTextUpdateSlideThrough, false );
   }
 }
 
@@ -417,7 +417,7 @@ static void update_rows( void )
   {
     first_update = 0;
     movie_text_layer_set_origin( row[2], row_cur_pos[2], MovieTextUpdateDelay, false );
-    movie_text_layer_set_text( row[2], row_cur_data[2], MovieTextUpdateSlideLeft, false );
+    movie_text_layer_set_text( row[2], row_cur_data[2], MovieTextUpdateSlideThrough, false );
   }
   else
   {
