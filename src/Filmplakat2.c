@@ -591,6 +591,10 @@ static void on_battery_change( BatteryChargeState charge )
     status_battery_charge = charge;
     layer_mark_dirty( status_layer );
   }
+  if( !charge.is_charging && charge.charge_percent == 10 )
+  {
+    vibes_short_pulse();
+  }
 }
 
 static void on_bluetooth_change( bool connected )
@@ -601,6 +605,10 @@ static void on_bluetooth_change( bool connected )
   {
     status_bluetooth_conn = connected;
     layer_mark_dirty( status_layer );
+  }
+  if( !connected )
+  {
+    vibes_double_pulse();
   }
 }
 
