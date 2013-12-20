@@ -623,11 +623,6 @@ static void window_load(Window *window)
   GRect row_frame = GRect( 0, 0, SCREEN_WIDTH, ROW_MAX_HIGHT );
   GRect status_bar_rect = GRect( 0, 0, SCREEN_WIDTH, 20 );
 
-  // Inverter, Statusbalken & Ladezustandslayer
-  inverter_layer = inverter_layer_create( window_frame );
-  layer_set_hidden( inverter_layer_get_layer( inverter_layer), !settings_inverter_state );
-  layer_add_child( window_layer, inverter_layer_get_layer( inverter_layer ) );
-
   // Datumszeilen
   GFont font_map[] = {
     font_date,
@@ -646,10 +641,9 @@ static void window_load(Window *window)
     movie_text_layer_set_font( row[i], font_map[i] );
 
     layer_add_child( window_layer, movie_text_layer_get_layer( row[i] ) );
-    layer_insert_below_sibling( movie_text_layer_get_layer( row[i] ), 
-                                inverter_layer_get_layer( inverter_layer ) );
   }
 
+  // Inverter, Statusbalken & Ladezustandslayer  
   status_layer = layer_create( status_bar_rect );  
   charge_layer = inverter_layer_create( GRectZero );
 
@@ -657,7 +651,11 @@ static void window_load(Window *window)
   layer_set_hidden( status_layer, !settings_status_visible );
   layer_add_child( status_layer, inverter_layer_get_layer( charge_layer ) );
   layer_add_child( window_layer, status_layer );
-  layer_insert_below_sibling( status_layer, inverter_layer_get_layer( inverter_layer ) );
+
+  // Inverter als letztes (und somit kein layer_insert_below_sibling calls)
+  inverter_layer = inverter_layer_create( window_frame );
+  layer_set_hidden( inverter_layer_get_layer( inverter_layer), !settings_inverter_state );
+  layer_add_child( window_layer, inverter_layer_get_layer( inverter_layer ) );
 
   accel_config_timer = app_timer_register( 5000, on_tap_timeout, NULL );
 
