@@ -3,12 +3,18 @@
   "shortName": "Filmplakat2",
   "longName": "Filmplakat2",
   "companyName": "",
-  "versionCode": 121,
-  "versionLabel": "1.2.1",
+  "versionCode": 122,
+  "versionLabel": "1.2.2",
+  "capabilities": [
+    "configurable"
+  ],
   "watchapp": {
     "watchface": true
   },
   "appKeys": {
+    "settings_inverter_state": 1,
+    "settings_status_visible": 2,
+    "settings_accel_config"  : 3
   },
   "resources": {
    "media": [

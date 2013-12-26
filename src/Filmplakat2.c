@@ -72,7 +72,8 @@ static AppTimer *test_date_timer = 0;
 enum PersistantSettings
 {
   SETTINGS_INVERTER_STATE = 1,
-  SETTINGS_STATUS_VISIBLE = 2
+  SETTINGS_STATUS_VISIBLE = 2,
+  SETTINGS_ACCEL_CONFIG   = 3
 };
 
 // Status der einzelnen Zeilen
@@ -178,8 +179,11 @@ static uint8_t first_update = 1;
 static AppTimer *accel_config_timer = 0;
 
 // Konfigwerte
+static AppSync app;
+static uint8_t appsync_buffer[64];
 static bool settings_inverter_state = false;
 static bool settings_status_visible = false;
+static bool settings_accel_config   = true;
 
 static void copy_time( uint8_t *is_ascii, uint8_t *ten_and_mark )
 {
@@ -531,6 +535,10 @@ static void toggle_view_setting( Layer *layer, int storage_key, bool *value )
   persist_write_bool( storage_key, *value );
 }
 
+//
+// Eventbearbeitung
+//
+
 #if TEST_DATE
 
 static void on_test_date_tick( void *data __attribute__((__unused__)) )
@@ -550,7 +558,6 @@ static void on_minute_tick( struct tm *time_ticks __attribute__((__unused__)),
 }
 
 #endif
-
 
 static void on_tap_gesture( AccelAxisType axis, int32_t direction )
 {
@@ -612,6 +619,104 @@ static void on_bluetooth_change( bool connected )
   }
 }
 
+//
+// Remote-Konfiguration
+//
+static void on_conf_keys_changed( const uint32_t key, const Tuple *tp_new,
+                                  const Tuple *tp_old __attribute__((__unused__)),
+                                  void *ctx __attribute__((__unused__)) )
+{
+  TRACE
+
+  bool value = (bool)tp_new->value->uint8;
+
+  switch( key )
+  {
+    case SETTINGS_INVERTER_STATE: /* FALL_THROUGH */
+      {
+        settings_inverter_state = !value;
+        toggle_view_setting( inverter_layer_get_layer( inverter_layer ),
+                             SETTINGS_INVERTER_STATE, 
+                             &settings_inverter_state );
+      }
+      break;
+
+    case SETTINGS_STATUS_VISIBLE:
+      {
+        settings_status_visible = !value;
+        toggle_view_setting( status_layer, 
+                             SETTINGS_STATUS_VISIBLE,
+                             &settings_status_visible );
+      }
+      break;
+
+    case SETTINGS_ACCEL_CONFIG:
+      {
+        settings_accel_config = value;
+        persist_write_bool( SETTINGS_ACCEL_CONFIG, settings_accel_config );
+      }
+      break;
+  }
+}
+static void on_app_message_error( DictionaryResult dict_error __attribute__((__unused__)),
+                                  AppMessageResult app_message_error,
+                                  void* ctx __attribute__((__unused__)) )
+{
+  TRACE
+
+  APP_LOG( APP_LOG_LEVEL_ERROR, "App error: %d", app_message_error );
+}
+
+static void app_config_send_keys( void )
+{
+  TRACE
+
+  DictionaryIterator* it = NULL;
+  app_message_outbox_begin( &it );
+
+  if( it == NULL )
+  {
+    return;
+  }
+
+  dict_write_uint8( it, SETTINGS_INVERTER_STATE, ( settings_inverter_state ? 1 : 0 ) );
+  dict_write_uint8( it, SETTINGS_STATUS_VISIBLE, ( settings_status_visible ? 1 : 0 ) );
+  dict_write_uint8( it, SETTINGS_ACCEL_CONFIG  , ( settings_accel_config   ? 1 : 0 ) );
+
+  dict_write_end( it );
+  app_message_outbox_send();
+}
+
+static void app_config_init( void )
+{
+  TRACE
+
+  Tuplet persistent_keys[] = {
+    TupletInteger( SETTINGS_INVERTER_STATE, ( settings_inverter_state ? 1 : 0 ) ),
+    TupletInteger( SETTINGS_STATUS_VISIBLE, ( settings_status_visible ? 1 : 0 ) ),
+    TupletInteger( SETTINGS_ACCEL_CONFIG  , ( settings_accel_config   ? 1 : 0 ) )
+  };
+
+  app_message_open( 64, 64 );
+  app_sync_init( &app, appsync_buffer, sizeof( appsync_buffer ), 
+                 persistent_keys, ARRAY_LENGTH( persistent_keys ),
+                 on_conf_keys_changed, on_app_message_error, NULL );
+
+  app_config_send_keys();
+}
+
+static void app_config_deinit( void )
+{
+  TRACE
+
+  app_sync_deinit( &app );
+}
+
+//
+//
+// Setup
+//
+
 static void window_load(Window *window)
 {
   TRACE
@@ -657,9 +762,12 @@ static void window_load(Window *window)
   layer_set_hidden( inverter_layer_get_layer( inverter_layer), !settings_inverter_state );
   layer_add_child( window_layer, inverter_layer_get_layer( inverter_layer ) );
 
-  accel_config_timer = app_timer_register( 5000, on_tap_timeout, NULL );
+  if( settings_accel_config )
+  {
+    accel_config_timer = app_timer_register( 5000, on_tap_timeout, NULL );
+    accel_tap_service_subscribe( on_tap_gesture );
+  }
 
-  accel_tap_service_subscribe( on_tap_gesture );
   battery_state_service_subscribe( on_battery_change );
   bluetooth_connection_service_subscribe( on_bluetooth_change );
 
@@ -714,6 +822,11 @@ static void init(void)
     settings_status_visible = persist_read_bool( SETTINGS_STATUS_VISIBLE );
   }
 
+  if( persist_exists( SETTINGS_ACCEL_CONFIG ) )
+  {
+    settings_accel_config = persist_read_bool( SETTINGS_ACCEL_CONFIG );
+  }
+
   window = window_create();
 
   window_set_fullscreen( window, true );
@@ -739,6 +852,8 @@ static void init(void)
   status_battery_charge = battery_state_service_peek();
   status_bluetooth_conn = bluetooth_connection_service_peek();
 
+  app_config_init();
+
   // als letztes damit alle resourcen initialisiert sind
   window_stack_push( window, true /*animated*/ );
 }
@@ -746,6 +861,8 @@ static void init(void)
 static void deinit(void)
 {
   TRACE
+
+  app_config_deinit();
 
   accel_tap_service_unsubscribe();
   battery_state_service_unsubscribe();

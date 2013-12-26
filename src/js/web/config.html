@@ -1,0 +1,17 @@
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, user-scalable=no" />
+		<link rel="stylesheet" type="text/css" href="pebble.css">
+	</head>
+	<body>
+		<header><h1>Filmplakat2 for Pebble</h1></header>
+		<form onsubmit="return s(this)">
+			<input type="checkbox" id="settings_inverter_state"><label for="settings_inverter_state">Invert Display</label>
+			<input type="checkbox" id="settings_status_visible"><label for="settings_status_visible">Show Status</label>
+			<input type="checkbox" id="settings_accel_config"><label for="settings_accel_config">Gestures</label>
+			<p/>
+			<input type="submit" id="save" value="Save">
+		</form>
+		<script type="text/javascript" src="config.js"></script>
+	</body>
+</html>
