@@ -1,0 +1,11 @@
+<svg width="26" height="26" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient y1="0" x1="0" y2="1" x2="0" id="s5">
+      <stop offset="0" stop-opacity="0.9" stop-color="#ffffff"/>
+      <stop offset="1" stop-opacity="0.9" stop-color="#717171"/>
+    </linearGradient>
+  </defs>
+  <g>
+    <circle id="s1" r="8" cy="13" cx="13" stroke-width="5" stroke="url(#s5)" fill="#fff" style="fill-opacity:0.0" />
+  </g>
+</svg>
