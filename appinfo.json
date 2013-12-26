@@ -26,19 +26,19 @@
         "file": "images/bt_disconnected.png"
        },
        {"type":"font",
-        "characterRegex": "[einzwdrvfünschbatulö]",
+        "characterRegex": "[einzwdrvfü schbatulöı]",
         "trackingAdjust": -1,
         "name":"FONT_ROBOTO_BOLDITALIC_35",
         "file":"fonts/roboto/Roboto-BoldItalic_35.ttf"
        },
        {"type":"font",
-        "characterRegex": "[einzwdrvfünschbatulögı]",
+        "characterRegex": "[einzwdrvfü schbatulögı]",
         "trackingAdjust": -2,
         "name":"FONT_ROBOTO_ITALIC_33",
         "file":"fonts/roboto/Roboto-Italic_33.ttf"
        },
        {"type":"font",
-        "characterRegex": "[uhr]",
+        "characterRegex": "[uhr ]",
         "trackingAdjust": -2,
         "name":"FONT_ROBOTO_LIGHTITALIC_30",
         "file":"fonts/roboto/Roboto-LightItalic_30.ttf"
@@ -49,7 +49,7 @@
         "file":"fonts/roboto/Roboto-Italic_13.ttf"
        },
        {"type":"font",
-        "characterRegex": "[0-9%+]",
+        "characterRegex": "[0-9% +.]",
         "name":"FONT_ROBOTO_REGULAR_9",
         "file":"fonts/roboto/Roboto-Regular_9.ttf"
        }
