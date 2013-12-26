@@ -3,8 +3,8 @@
   "shortName": "Filmplakat2",
   "longName": "Filmplakat2",
   "companyName": "",
-  "versionCode": 120,
-  "versionLabel": "1.2.0",
+  "versionCode": 121,
+  "versionLabel": "1.2.1",
   "watchapp": {
     "watchface": true
   },
