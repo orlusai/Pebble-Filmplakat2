@@ -1,7 +1,7 @@
 {
-  "uuid": "4829b9c9-d6e5-422a-b598-2a901e4ec0f8",
+  "uuid": "4829b9c9-d6e5-422a-b598-2a901e4ec0f9",
   "shortName": "Filmplakat2",
-  "longName": "Filmplakat2",
+  "longName": "Filmplakat2 Regular",
   "companyName": "",
   "versionCode": 122,
   "versionLabel": "1.2.2",
@@ -34,25 +34,25 @@
        {"type":"font",
         "characterRegex": "[einzwdrvfü schbatulöı]",
         "trackingAdjust": -1,
-        "name":"FONT_ROBOTO_BOLDITALIC_35",
-        "file":"fonts/roboto/Roboto-BoldItalic_35.ttf"
+        "name":"FONT_ROBOTO_BOLD_35",
+        "file":"fonts/roboto/Roboto-Bold_35.ttf"
        },
        {"type":"font",
         "characterRegex": "[einzwdrvfü schbatulögı]",
         "trackingAdjust": -2,
-        "name":"FONT_ROBOTO_ITALIC_33",
-        "file":"fonts/roboto/Roboto-Italic_33.ttf"
+        "name":"FONT_ROBOTO_REGULAR_33",
+        "file":"fonts/roboto/Roboto-Regular_33.ttf"
        },
        {"type":"font",
         "characterRegex": "[uhr ]",
         "trackingAdjust": -2,
-        "name":"FONT_ROBOTO_LIGHTITALIC_30",
-        "file":"fonts/roboto/Roboto-LightItalic_30.ttf"
+        "name":"FONT_ROBOTO_LIGHT_30",
+        "file":"fonts/roboto/Roboto-Light_30.ttf"
        },
        {"type":"font",
         "characterRegex": "[0-9 .MDFSJAONoiranuebäzplgstmkv]",
-        "name":"FONT_ROBOTO_ITALIC_13",
-        "file":"fonts/roboto/Roboto-Italic_13.ttf"
+        "name":"FONT_ROBOTO_REGULAR_13",
+        "file":"fonts/roboto/Roboto-Regular_13.ttf"
        },
        {"type":"font",
         "characterRegex": "[0-9% +.]",

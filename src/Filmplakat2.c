@@ -836,10 +836,10 @@ static void init(void)
     .unload = window_unload,
   });
 
-  font_hour    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_BOLDITALIC_35 ) );
-  font_minutes = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_33 ) );
-  font_uhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHTITALIC_30 ) );
-  font_date    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_13 ) );
+  font_hour    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_BOLD_35 ) );
+  font_minutes = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_33 ) );
+  font_uhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHT_30 ) );
+  font_date    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_13 ) );
   font_charge  = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_9 ) );
 
   icon_bt_on  = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_ON_ICON );
