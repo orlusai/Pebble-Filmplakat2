@@ -17,5 +17,5 @@
 
 [GitHub Repo](https://github.com/Shirk/Pebble-Filmplakat2) / 
 [German-Pebblers](http://www.german-pebblers.de/viewtopic.php?f=3&t=704) / 
-[MY PEBBLE FACES](http://http://www.mypebblefaces.com/apps/13794/8205/)
+[MY PEBBLE FACES](http://www.mypebblefaces.com/apps/13794/8205/)
 
