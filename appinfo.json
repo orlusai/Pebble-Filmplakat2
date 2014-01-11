@@ -3,8 +3,8 @@
   "shortName": "Filmplakat2",
   "longName": "Filmplakat2",
   "companyName": "",
-  "versionCode": 122,
-  "versionLabel": "1.2.2",
+  "versionCode": 123,
+  "versionLabel": "1.2.3",
   "capabilities": [
     "configurable"
   ],
@@ -12,9 +12,10 @@
     "watchface": true
   },
   "appKeys": {
-    "settings_inverter_state": 1,
-    "settings_status_visible": 2,
-    "settings_accel_config"  : 3
+    "settings_inverter_state"  : 1,
+    "settings_status_visible"  : 2,
+    "settings_accel_config"    : 3,
+    "settings_regular_fontset" : 4
   },
   "resources": {
    "media": [
@@ -58,6 +59,29 @@
         "characterRegex": "[0-9% +.]",
         "name":"FONT_ROBOTO_REGULAR_9",
         "file":"fonts/roboto/Roboto-Regular_9.ttf"
+       },
+       {"type":"font",
+        "characterRegex": "[einzwdrvfü schbatulöı]",
+        "trackingAdjust": -1,
+        "name":"FONT_ROBOTO_BOLD_35",
+        "file":"fonts/roboto/Roboto-Bold_35.ttf"
+       },
+       {"type":"font",
+        "characterRegex": "[einzwdrvfü schbatulögı]",
+        "trackingAdjust": -2,
+        "name":"FONT_ROBOTO_REGULAR_32",
+        "file":"fonts/roboto/Roboto-REGULAR_32.ttf"
+       },
+       {"type":"font",
+        "characterRegex": "[uhr ]",
+        "trackingAdjust": -2,
+        "name":"FONT_ROBOTO_LIGHT_30",
+        "file":"fonts/roboto/Roboto-Light_30.ttf"
+       },
+       {"type":"font",
+        "characterRegex": "[0-9 .MDFSJAONoiranuebäzplgstmkv]",
+        "name":"FONT_ROBOTO_REGULAR_13",
+        "file":"fonts/roboto/Roboto-REGULAR_13.ttf"
        }
     ]
   }
