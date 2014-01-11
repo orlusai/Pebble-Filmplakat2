@@ -73,6 +73,7 @@ static AppTimer *test_date_timer = 0;
 // Storage-Keys
 enum PersistantSettings
 {
+  SETTINGS_SEND_KEYS       = 0,
   SETTINGS_INVERTER_STATE  = 1,
   SETTINGS_STATUS_VISIBLE  = 2,
   SETTINGS_ACCEL_CONFIG    = 3,
@@ -617,6 +618,7 @@ static void on_minute_tick( struct tm *time_ticks __attribute__((__unused__)),
 
 #endif
 
+static void app_config_send_keys( void );
 static void on_tap_gesture( AccelAxisType axis, int32_t direction )
 {
   TRACE
@@ -638,6 +640,7 @@ static void on_tap_gesture( AccelAxisType axis, int32_t direction )
                            SETTINGS_INVERTER_STATE, &settings_inverter_state );
       break;
   }
+  app_config_send_keys();
 }
 
 static void on_tap_timeout( void *data __attribute__((__unused__)) )
@@ -689,7 +692,7 @@ static void on_bluetooth_change( bool connected )
 //
 
 static void on_conf_keys_changed( const uint32_t key, const Tuple *tp_new,
-                                  const Tuple *tp_old __attribute__((__unused__)),
+                                  const Tuple *tp_old,
                                   void *ctx __attribute__((__unused__)) )
 {
   TRACE
@@ -739,15 +742,26 @@ static void on_conf_keys_changed( const uint32_t key, const Tuple *tp_new,
         update_rows();
       }
       break;
+
+    case SETTINGS_SEND_KEYS:
+      {
+        if( tp_old && tp_new && tp_new->value->uint8 != tp_old->value->uint8 )
+        {
+          /* Kein echter Config-Wert sondern ein Trigger vom Pebble-JS teil */
+          APP_LOG( APP_LOG_LEVEL_INFO, "Config-Request from JS-Kit [%d]", tp_new->value->uint8 );
+          app_config_send_keys();
+        }
+      }
+      break;
   }
 }
-static void on_app_message_error( DictionaryResult dict_error __attribute__((__unused__)),
+static void on_app_message_error( DictionaryResult dict_error,
                                   AppMessageResult app_message_error,
                                   void* ctx __attribute__((__unused__)) )
 {
   TRACE
 
-  APP_LOG( APP_LOG_LEVEL_ERROR, "App error: %d", app_message_error );
+  APP_LOG( APP_LOG_LEVEL_ERROR, "App error: %d / %d", dict_error, app_message_error );
 }
 
 static void app_config_send_keys( void )
@@ -780,9 +794,10 @@ static void app_config_init( void )
     TupletInteger( SETTINGS_STATUS_VISIBLE , ( settings_status_visible  ? 1 : 0 ) ),
     TupletInteger( SETTINGS_ACCEL_CONFIG   , ( settings_accel_config    ? 1 : 0 ) ),
     TupletInteger( SETTINGS_REGULAR_FONTSET, ( settings_regular_fontset ? 1 : 0 ) ),
+    TupletInteger( SETTINGS_SEND_KEYS      , 0 ),
   };
 
-  app_message_open( 64, 64 );
+  app_message_open( 92,92 );
   app_sync_init( &app, appsync_buffer, sizeof( appsync_buffer ), 
                  persistent_keys, ARRAY_LENGTH( persistent_keys ),
                  on_conf_keys_changed, on_app_message_error, NULL );
