@@ -37,6 +37,7 @@ static int32_t test_dates[] = {
   1387041540, /* 17:19 */
   1387041600, /* 17:20 */
   1387041660, /* 17:21 */
+  1387042020, /* 17:27 */
   1386978600, /* 23:50 */
   1386978660, /* 23:51 */
   1386979140, /* 23:59 */
@@ -54,8 +55,9 @@ static AppTimer *test_date_timer = 0;
 
 // Zeilenhöhen in Pixel
 #define BASE_ROW_X 20
+#define REGULAR_ROW_X 2
 #define ROW1_HIGHT 28 + 2
-#define ROW2_HIGHT 25 + 2
+#define ROW2_HIGHT 28 + 2
 #define ROW3_HIGHT 28 + 2
 #define DATE_HIGHT 36 + 2
 #define DOTLESS_X  5
@@ -71,19 +73,27 @@ static AppTimer *test_date_timer = 0;
 // Storage-Keys
 enum PersistantSettings
 {
-  SETTINGS_INVERTER_STATE = 1,
-  SETTINGS_STATUS_VISIBLE = 2,
-  SETTINGS_ACCEL_CONFIG   = 3
+  SETTINGS_INVERTER_STATE  = 1,
+  SETTINGS_STATUS_VISIBLE  = 2,
+  SETTINGS_ACCEL_CONFIG    = 3,
+  SETTINGS_REGULAR_FONTSET = 4,
 };
 
 // Status der einzelnen Zeilen
-enum RowState
+typedef enum
 {
-    ROW_STATE_KEEP      = 0,
-    ROW_STATE_DISAPPEAR = 1,
-    ROW_STATE_REAPPEAR  = 2,
-    ROW_STATE_STAYDOWN  = 3
-};
+  ROW_STATE_KEEP      = 0,
+  ROW_STATE_DISAPPEAR = 1,
+  ROW_STATE_REAPPEAR  = 2,
+  ROW_STATE_STAYDOWN  = 3
+} RowState;
+
+// Fontset-IDs
+typedef enum
+{
+  FONT_SET_ITALIC  = 0,
+  FONT_SET_REGULAR = 1
+} FontsetId;
 
 // Textdaten
 struct DisplayData
@@ -181,9 +191,10 @@ static AppTimer *accel_config_timer = 0;
 // Konfigwerte
 static AppSync app;
 static uint8_t appsync_buffer[64];
-static bool settings_inverter_state = false;
-static bool settings_status_visible = false;
-static bool settings_accel_config   = true;
+static bool settings_inverter_state  = false;
+static bool settings_status_visible  = false;
+static bool settings_accel_config    = true;
+static bool settings_regular_fontset = false;
 
 static void copy_time( uint8_t *is_ascii, uint8_t *ten_and_mark )
 {
@@ -380,16 +391,26 @@ static void update_rows( void )
   /* row[0] - immer das Datum */
   row_cur_pos[0].y = ( base_offset_y += DATE_HIGHT );
   
-  base_offset_y += 22; // warum 22? Puffer??
+  base_offset_y += 22;
   offset_y = ( SCREEN_HIGHT - base_offset_y ) / 2;
 
   /* finale positionen */
   for( i = 0; i < row_cur_cnt; ++i )
   {
-    row_cur_pos[i].x -= row_cur_pos[i].y / 5;
+    if( settings_regular_fontset )
+    {
+      row_cur_pos[i].x = REGULAR_ROW_X;
+    }
+    else
+    {
+      row_cur_pos[i].x -= row_cur_pos[i].y / 5;
+    }
     row_cur_pos[i].y += offset_y;
   }
-  row_cur_pos[0].x += 4; // Datum weiter nach Rechts
+  if( settings_regular_fontset == false )
+  {
+    row_cur_pos[0].x += 4; // Datum weiter nach Rechts
+  }
   row_cur_pos[1].x -= 7; // Leerzeichen vor jeder Stunde ausgleichen
 
   if( first_update )
@@ -535,6 +556,43 @@ static void toggle_view_setting( Layer *layer, int storage_key, bool *value )
   persist_write_bool( storage_key, *value );
 }
 
+
+static void load_fontset( FontsetId font_set, bool unload_last )
+{
+  if( unload_last )
+  {
+    fonts_unload_custom_font( font_hour );
+    fonts_unload_custom_font( font_minutes );
+    fonts_unload_custom_font( font_uhr );
+    fonts_unload_custom_font( font_date );
+    fonts_unload_custom_font( font_charge );
+  }
+
+  switch( font_set )
+  {
+    case FONT_SET_ITALIC:
+      {
+        font_hour    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_BOLDITALIC_35 ) );
+        font_minutes = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_33 ) );
+        font_uhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHTITALIC_30 ) );
+        font_date    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_13 ) );
+        font_charge  = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_9 ) );
+      }
+      break;
+
+    case FONT_SET_REGULAR: /* FALL_THROUGH */
+    default:
+      {
+        font_hour    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_BOLD_35 ) );
+        font_minutes = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_32 ) );
+        font_uhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHT_30 ) );
+        font_date    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_13 ) );
+        font_charge  = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_9 ) );
+      }
+      break;
+  }
+}
+
 //
 // Eventbearbeitung
 //
@@ -622,6 +680,7 @@ static void on_bluetooth_change( bool connected )
 //
 // Remote-Konfiguration
 //
+
 static void on_conf_keys_changed( const uint32_t key, const Tuple *tp_new,
                                   const Tuple *tp_old __attribute__((__unused__)),
                                   void *ctx __attribute__((__unused__)) )
@@ -656,6 +715,23 @@ static void on_conf_keys_changed( const uint32_t key, const Tuple *tp_new,
         persist_write_bool( SETTINGS_ACCEL_CONFIG, settings_accel_config );
       }
       break;
+
+    case SETTINGS_REGULAR_FONTSET:
+      {
+        settings_regular_fontset = value;
+        persist_write_bool( SETTINGS_REGULAR_FONTSET, settings_regular_fontset );
+
+        load_fontset( settings_regular_fontset ? FONT_SET_REGULAR : FONT_SET_ITALIC, true );
+
+        movie_text_layer_set_font( row[0], font_date );
+        movie_text_layer_set_font( row[1], font_hour );
+        movie_text_layer_set_font( row[2], font_uhr );
+        movie_text_layer_set_font( row[3], font_minutes );
+        movie_text_layer_set_font( row[4], font_minutes );
+
+        update_rows();
+      }
+      break;
   }
 }
 static void on_app_message_error( DictionaryResult dict_error __attribute__((__unused__)),
@@ -679,9 +755,10 @@ static void app_config_send_keys( void )
     return;
   }
 
-  dict_write_uint8( it, SETTINGS_INVERTER_STATE, ( settings_inverter_state ? 1 : 0 ) );
-  dict_write_uint8( it, SETTINGS_STATUS_VISIBLE, ( settings_status_visible ? 1 : 0 ) );
-  dict_write_uint8( it, SETTINGS_ACCEL_CONFIG  , ( settings_accel_config   ? 1 : 0 ) );
+  dict_write_uint8( it, SETTINGS_INVERTER_STATE , ( settings_inverter_state  ? 1 : 0 ) );
+  dict_write_uint8( it, SETTINGS_STATUS_VISIBLE , ( settings_status_visible  ? 1 : 0 ) );
+  dict_write_uint8( it, SETTINGS_ACCEL_CONFIG   , ( settings_accel_config    ? 1 : 0 ) );
+  dict_write_uint8( it, SETTINGS_REGULAR_FONTSET, ( settings_regular_fontset ? 1 : 0 ) );
 
   dict_write_end( it );
   app_message_outbox_send();
@@ -692,9 +769,10 @@ static void app_config_init( void )
   TRACE
 
   Tuplet persistent_keys[] = {
-    TupletInteger( SETTINGS_INVERTER_STATE, ( settings_inverter_state ? 1 : 0 ) ),
-    TupletInteger( SETTINGS_STATUS_VISIBLE, ( settings_status_visible ? 1 : 0 ) ),
-    TupletInteger( SETTINGS_ACCEL_CONFIG  , ( settings_accel_config   ? 1 : 0 ) )
+    TupletInteger( SETTINGS_INVERTER_STATE , ( settings_inverter_state  ? 1 : 0 ) ),
+    TupletInteger( SETTINGS_STATUS_VISIBLE , ( settings_status_visible  ? 1 : 0 ) ),
+    TupletInteger( SETTINGS_ACCEL_CONFIG   , ( settings_accel_config    ? 1 : 0 ) ),
+    TupletInteger( SETTINGS_REGULAR_FONTSET, ( settings_regular_fontset ? 1 : 0 ) ),
   };
 
   app_message_open( 64, 64 );
@@ -827,6 +905,11 @@ static void init(void)
     settings_accel_config = persist_read_bool( SETTINGS_ACCEL_CONFIG );
   }
 
+  if( persist_exists( SETTINGS_REGULAR_FONTSET ) )
+  {
+    settings_regular_fontset = persist_read_bool( SETTINGS_REGULAR_FONTSET );
+  }
+
   window = window_create();
 
   window_set_fullscreen( window, true );
@@ -836,11 +919,7 @@ static void init(void)
     .unload = window_unload,
   });
 
-  font_hour    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_BOLDITALIC_35 ) );
-  font_minutes = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_33 ) );
-  font_uhr     = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_LIGHTITALIC_30 ) );
-  font_date    = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_ITALIC_13 ) );
-  font_charge  = fonts_load_custom_font( resource_get_handle( RESOURCE_ID_FONT_ROBOTO_REGULAR_9 ) );
+  load_fontset( settings_regular_fontset ? FONT_SET_REGULAR : FONT_SET_ITALIC, false );
 
   icon_bt_on  = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_ON_ICON );
   icon_bt_off = gbitmap_create_with_resource( RESOURCE_ID_IMAGE_BT_OFF_ICON );
