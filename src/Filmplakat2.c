@@ -172,6 +172,7 @@ static BatteryChargeState status_battery_charge = {
   .is_charging    = false,
   .is_plugged     = true
 };
+static bool status_battery_did_notify = false;
 
 static GFont font_uhr, font_hour, font_minutes, font_date, font_charge;
 
@@ -655,9 +656,16 @@ static void on_battery_change( BatteryChargeState charge )
     status_battery_charge = charge;
     layer_mark_dirty( status_layer );
   }
-  if( !charge.is_charging && charge.charge_percent == 10 )
+  if( !charge.is_charging && 
+       charge.charge_percent == 10 &&
+       status_battery_did_notify == false)
   {
+    status_battery_did_notify = true;
     vibes_short_pulse();
+  }
+  if( charge.charge_percent > 10 )
+  {
+    status_battery_did_notify = false;
   }
 }
 
