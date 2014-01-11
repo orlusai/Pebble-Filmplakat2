@@ -510,8 +510,7 @@ static void update_status( struct Layer *layer, GContext *ctx )
 {
   //TRACE
   char batt_text[5] = "\0\0\0\0\0";
-  // FIXME: BETA3 liefert nur werte von 10-90, nie 100
-  int  batt_charge = 10 + (int)status_battery_charge.charge_percent;
+  int  batt_charge = (int)status_battery_charge.charge_percent;
 
   GRect batt_outline = GRect( SCREEN_WIDTH - 22, 2, 20, 11 );
   GRect batt_label   = GRect( SCREEN_WIDTH - 22, 2, 20, 10 );
