@@ -1,4 +1,20 @@
 var config = {};
+var got_config = false;
+var show_config = false;
+
+function showConfigWindow()
+{
+	var uri_params = config;
+	uri_params['nonce'] = new Date().getTime();
+
+	var uri = 'http://pebble.bitspin.at/config/Filmplakat2/#' + encodeURIComponent( JSON.stringify( uri_params ) );
+	var res;
+
+	//console.log( "Going to openURL: '" + uri + "'" );
+	console.log( "Going to openURL.." );
+	res = Pebble.openURL( uri );
+	console.log( "openURL returned: " + res );
+}
 
 Pebble.addEventListener("ready",
 	function( e ) {
@@ -15,6 +31,13 @@ Pebble.addEventListener( "appmessage",
 	function( e ) {
 		console.log( "Got config data from Pebble" );
 		config = e.payload;
+		got_config = true;
+
+		if( show_config )
+		{
+			show_config = false;
+			showConfiguration();
+		}
 	}
 );
 
@@ -32,16 +55,14 @@ Pebble.addEventListener( "webviewclosed",
 
 Pebble.addEventListener( "showConfiguration",
 	function( e ){
-		var uri_params = config;
-
-		uri_params['nonce'] = new Date().getTime();
-
-		var uri = 'http://pebble.bitspin.at/config/Filmplakat2/#' + encodeURIComponent( JSON.stringify( uri_params ) );
-		var res;
-
-		//console.log( "Going to openURL: '" + uri + "'" );
-		console.log( "Going to openURL.." );
-		res = Pebble.openURL( uri );
-		console.log( "openURL returned: " + res );
+		if( got_config == false )
+		{
+			show_config = true;
+			Pebble.sendAppMessage( { 'settings_send_keys' : new Date().getTime() } );
+		}
+		else
+		{
+			showConfigWindow();
+		}
 	}
 );

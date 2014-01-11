@@ -12,6 +12,7 @@
     "watchface": true
   },
   "appKeys": {
+    "settings_send_keys"       : 0,
     "settings_inverter_state"  : 1,
     "settings_status_visible"  : 2,
     "settings_accel_config"    : 3,
