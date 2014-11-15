@@ -82,7 +82,7 @@
        {"type":"font",
         "characterRegex": "[0-9 .MDFSJAONoiranuebäzplgstmkv]",
         "name":"FONT_ROBOTO_REGULAR_13",
-        "file":"fonts/roboto/Roboto-REGULAR_13.ttf"
+        "file":"fonts/roboto/Roboto-Regular_13.ttf"
        }
     ]
   }
